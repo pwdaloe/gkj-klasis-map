@@ -1,65 +1,129 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import dynamic from 'next/dynamic'
+import { useEffect, useState, useCallback } from 'react'
+import Sidebar from '@/components/map/Sidebar'
+import InfoPanel from '@/components/map/InfoPanel'
+import { WargaPerKelurahan, Gereja } from '@/lib/types'
+
+const MapView = dynamic(() => import('@/components/map/MapView'), { ssr: false })
+
+const TAHUN_LIST = [2024, 2025, 2026, 2027, 2028]
+
+export default function HomePage() {
+  const [gereja, setGereja] = useState<Gereja[]>([])
+  const [data, setData] = useState<WargaPerKelurahan[]>([])
+  const [kotaList, setKotaList] = useState<string[]>([])
+  const [filterTahun, setFilterTahun] = useState(2026)
+  const [filterGereja, setFilterGereja] = useState('')
+  const [filterKota, setFilterKota] = useState('')
+  const [selected, setSelected] = useState<WargaPerKelurahan | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [focusLatLng, setFocusLatLng] = useState<[number, number] | null>(null)
+
+  // Collapse sidebar by default on mobile
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarOpen(false)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/gereja')
+      .then((r) => r.json())
+      .then(setGereja)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/kelurahan')
+      .then((r) => r.json())
+      .then((rows: any[]) => {
+        const kota = [...new Set(rows.map((r) => r.kota_kab).filter(Boolean))].sort()
+        setKotaList(kota as string[])
+      })
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
+    const params = new URLSearchParams({ tahun: String(filterTahun) })
+    if (filterGereja) params.set('gereja_id', filterGereja)
+    if (filterKota) params.set('kota_kab', filterKota)
+    fetch(`/api/warga?${params}`)
+      .then((r) => r.json())
+      .then((rows) => { setData(rows); setLoading(false) })
+  }, [filterTahun, filterGereja, filterKota])
+
+  const handleSelect = useCallback((item: WargaPerKelurahan) => setSelected(item), [])
+
+  const totalWarga = data.reduce((sum, d) => sum + d.total_warga, 0)
+  const kelurahanTerdata = data.filter((d) => d.total_warga > 0).length
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex h-screen w-screen overflow-hidden">
+      {sidebarOpen && (
+        <Sidebar
+          gereja={gereja}
+          tahunList={TAHUN_LIST}
+          filterTahun={filterTahun}
+          filterGereja={filterGereja}
+          filterKota={filterKota}
+          kotaList={kotaList}
+          data={data}
+          onTahun={setFilterTahun}
+          onGereja={setFilterGereja}
+          onKota={setFilterKota}
+          onClose={() => setSidebarOpen(false)}
+          onFlyTo={setFocusLatLng}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+      )}
+
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Overview bar */}
+        <div className="shrink-0 bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2">
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              title="Tampilkan sidebar"
+              className="mr-2 text-gray-500 hover:text-gray-800 text-lg leading-none"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              ☰
+            </button>
+          )}
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1">
+              <span className="text-xs text-gray-500">Tahun</span>
+              <span className="text-xs font-bold text-black">{filterTahun}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1">
+              <span className="text-xs text-gray-500">Gereja</span>
+              <span className="text-xs font-bold text-black">{gereja.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1">
+              <span className="text-xs text-gray-500">Kelurahan ter-data</span>
+              <span className="text-xs font-bold text-black">{kelurahanTerdata}</span>
+            </div>
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1">
+              <span className="text-xs text-gray-500">Total Warga</span>
+              <span className="text-xs font-bold text-black">{totalWarga.toLocaleString('id-ID')}</span>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Map area */}
+        <div className="flex-1 relative">
+          {loading && (
+            <div className="absolute inset-0 z-[2000] bg-white/60 flex items-center justify-center">
+              <div className="text-sm text-black animate-pulse">Memuat data peta...</div>
+            </div>
+          )}
+          <MapView
+            data={data}
+            gereja={gereja}
+            onSelectKelurahan={handleSelect}
+            focusLatLng={focusLatLng}
+          />
+          <InfoPanel item={selected} onClose={() => setSelected(null)} />
         </div>
       </main>
     </div>
-  );
+  )
 }
