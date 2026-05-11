@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pemetaan Warga GKJ Klasis Jakarta Bagian Timur
 
-## Getting Started
+Aplikasi web untuk memetakan persebaran warga jemaat gereja-gereja di bawah naungan **GKJ Klasis Jakarta Bagian Timur** berdasarkan kelurahan tempat tinggal. Data divisualisasikan dalam peta interaktif dengan gradasi warna berdasarkan kepadatan warga.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Fitur Utama
+
+### Peta Interaktif
+- Polygon kelurahan berwarna berdasarkan jumlah warga (gradasi merah)
+- Filter berdasarkan **tahun**, **gereja**, dan **kota/kabupaten**
+- Marker lokasi setiap gereja di peta
+- Klik polygon untuk melihat detail warga per gereja dan gereja terdekat
+- Kelurahan tanpa data warga tetap tampil (warna abu-abu) sebagai base layer
+
+### Sidebar & Navigasi
+- Sidebar dapat disembunyikan/dibuka di semua perangkat (tombol ✕ dan ☰)
+- Di perangkat mobile, sidebar otomatis tersembunyi saat pertama dibuka
+- Daftar kelurahan ber-jemaat muncul saat gereja dipilih — klik nama untuk zoom ke lokasi di peta
+
+### Overview Bar
+- Informasi ringkas di atas peta: tahun data, jumlah gereja terdaftar, kelurahan ter-data, dan total warga
+
+### Admin Panel
+- **Data Gereja** — tambah dan kelola data gereja beserta koordinat lokasi
+- **Data Kelompok** — kelompok/wilayah di bawah setiap gereja
+- **Data Kelurahan** — tambah kelurahan, geocoding otomatis via Nominatim (OpenStreetMap), input koordinat manual, filter status geocode, dan edit data inline
+- **Data Warga** — input jumlah warga per kombinasi tahun + kelurahan + gereja, autocomplete kelurahan, filter/search/sortir, edit dan hapus per baris
+
+### Manajemen Pengguna
+- Login dengan email dan password (Supabase Auth)
+- Tiga level akses:
+  - **Viewer** — hanya dapat melihat peta
+  - **Entry Data** — dapat mengakses admin panel untuk input data
+  - **Super Admin** — akses penuh termasuk manajemen pengguna
+- Halaman manajemen user: tambah user, ubah role, aktifkan/nonaktifkan akun
+
+---
+
+## Tech Stack
+
+| Lapisan | Teknologi |
+|---|---|
+| Framework | [Next.js](https://nextjs.org) (App Router, TypeScript) |
+| UI | [Tailwind CSS v4](https://tailwindcss.com) |
+| Peta | [Leaflet](https://leafletjs.com) |
+| Database & Auth | [Supabase](https://supabase.com) (PostgreSQL + RLS + Auth) |
+| Geocoding | [Nominatim](https://nominatim.openstreetmap.org) (OpenStreetMap) |
+| Deployment | [Vercel](https://vercel.com) |
+| Analytics | [Vercel Analytics](https://vercel.com/analytics) |
+
+---
+
+## Struktur Database
+
+```
+gereja          — data gereja (nama, alamat, koordinat)
+kelompok        — kelompok/wilayah per gereja
+kelurahan       — data kelurahan (kode, nama, kecamatan, kota/kab, provinsi, koordinat, geojson)
+fakta_warga     — jumlah warga per tahun + kelurahan + gereja + kelompok
+ref_provinsi    — referensi daftar provinsi
+user_profiles   — profil pengguna (role, status aktif)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Cara Menjalankan Lokal
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Clone repository dan install dependensi:
+   ```bash
+   git clone https://github.com/pwdaloe/gkj-klasis-map.git
+   cd gkj-klasis-map
+   npm install
+   ```
 
-## Learn More
+2. Buat file `.env.local` dengan isi:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+3. Jalankan development server:
+   ```bash
+   npm run dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Rencana Pengembangan
 
-## Deploy on Vercel
+### Jangka Pendek
+- [ ] Export data warga ke format Excel / CSV
+- [ ] Cetak / print ringkasan peta per gereja
+- [ ] Notifikasi saat data belum lengkap atau ada kelurahan tanpa koordinat
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Jangka Menengah
+- [ ] Grafik tren pertumbuhan warga per tahun per gereja
+- [ ] Perbandingan antar gereja dalam satu tampilan
+- [ ] Input data warga secara batch (upload Excel)
+- [ ] Riwayat perubahan data (audit log)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Jangka Panjang
+- [ ] Dashboard laporan untuk Klasis (ringkasan semua gereja)
+- [ ] Peta per kelompok / wilayah pelayanan
+- [ ] Integrasi data pendataan jemaat (bukan hanya jumlah, tapi profil)
+
+---
+
+## Changelog
+
+Lihat halaman Changelog langsung dari aplikasi setelah login.
+
+---
+
+## Lisensi
+
+Aplikasi ini dikembangkan untuk keperluan internal GKJ Klasis Jakarta Bagian Timur.
