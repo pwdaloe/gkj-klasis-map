@@ -1,6 +1,22 @@
 export default function ChangelogPage() {
   const logs = [
     {
+      versi: '1.6',
+      tanggal: '2026-06-12',
+      fitur: [
+        'Migrasi database dari Supabase ke PostgreSQL self-hosted di VPS (klasis.purwandaru.com)',
+        'Perbaikan rendering polygon kelurahan — geojson TEXT dari database kini di-parse sebelum dikirim ke peta',
+        'MapView mendukung tipe geometry FeatureCollection selain Polygon dan MultiPolygon',
+        'Geocoding diperbaiki: hanya menyimpan polygon bertipe Polygon/MultiPolygon, bukan Point atau LineString',
+        'Fitur input GeoJSON manual per kelurahan di admin panel — paste langsung dari geojson.io',
+        'Validasi tipe geometry pada input GeoJSON (tolak LineString, Point, dll dengan pesan jelas)',
+        'Kolom status Polygon (Ada/Kosong) dan kartu ringkasan jumlah polygon di admin Kelurahan',
+        'Import massal polygon kelurahan dari data SHP BPS 2020 — 15+ kelurahan terisi polygon otomatis',
+        'Tambah polygon Jatiwaringin dari SHP BPS 2020 (82 warga)',
+        'Tambah polygon 3 kelurahan via Overpass API (Halim Perdanakusuma, Jatirasa, Jatisari)',
+      ],
+    },
+    {
       versi: '1.5',
       tanggal: '2026-05-11',
       fitur: [

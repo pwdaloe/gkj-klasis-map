@@ -122,9 +122,10 @@ Browser
 ```sql
 gereja          — data gereja (gereja_id PK, nama, alamat, lat, lng)
 kelompok        — kelompok/wilayah per gereja (kelompok_id PK, gereja_id FK, kode, nama)
-kelurahan       — data kelurahan (kode PK, nama, kecamatan, kota_kab, provinsi, lat, lng, geojson JSONB)
+kelurahan       — data kelurahan aktif (kode PK, nama, kecamatan, kota_kab, provinsi, lat, lng, geojson TEXT)
 fakta_warga     — jumlah warga (id UUID PK, tahun, kelurahan_kode FK, gereja_id FK, kelompok_id FK, jumlah_warga)
 ref_provinsi    — referensi provinsi
+ref_wilayah     — referensi kelurahan Jabodetabek dari SHP BPS 2020 (id PK, kelurahan, kecamatan, kota_kab, provinsi, geojson TEXT, kode_bps)
 user_profiles   — profil pengguna (id UUID PK, email, password_hash, nama, role, aktif, must_change_password)
 ```
 
@@ -142,7 +143,7 @@ user_profiles (mandiri — tidak bergantung pada auth eksternal)
 - `user_profiles`: email UNIQUE NOT NULL
 - Trigger: auto-update `updated_at` saat fakta_warga diubah
 
-> File migrasi lengkap ada di `supabase_migration.sql` di root project.
+> Skema awal ada di `supabase_migration.sql`. Tabel `ref_wilayah` ditambahkan di v1.7.
 
 ---
 
@@ -366,10 +367,17 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 
 ## Rencana Pengembangan
 
+### Segera (v1.7)
+- [ ] Tabel referensi wilayah `ref_wilayah` — populate dari SHP BPS 2020 untuk DKI Jakarta, Bekasi, Depok, Bogor
+- [ ] Halaman admin `/admin/ref-wilayah` — browse, search, dan lihat status import
+- [ ] Tombol "Import ke Kelurahan" dari tabel `ref_wilayah` — polygon langsung terisi
+- [ ] Autocomplete nama kelurahan dari `ref_wilayah` saat tambah data warga atau kelurahan baru
+- [ ] Polygon Jatiduren (Jatisampurna, Bekasi) — gambar manual di geojson.io (3 warga)
+
 ### Jangka Pendek
 - [ ] Export data warga ke format Excel / CSV
 - [ ] Cetak / print ringkasan peta per gereja
-- [ ] Notifikasi saat ada kelurahan tanpa koordinat atau data belum lengkap
+- [ ] Notifikasi saat ada kelurahan tanpa koordinat atau polygon belum tersedia
 - [ ] Validasi input di admin panel (jumlah warga tidak boleh negatif, duplikasi entri)
 
 ### Jangka Menengah
@@ -385,11 +393,26 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 - [ ] Integrasi profil warga (bukan hanya jumlah, tapi data demografis)
 - [ ] Mode offline / PWA untuk daerah dengan koneksi terbatas
 
+### Selesai
+- [x] Migrasi database Supabase → PostgreSQL self-hosted di VPS
+- [x] Perbaikan rendering polygon kelurahan (geojson TEXT → parse di API)
+- [x] Input GeoJSON manual per kelurahan di admin panel + validasi geometry
+- [x] Import massal polygon dari SHP BPS 2020 (15+ kelurahan)
+
 ---
 
 ## Changelog
 
-Lihat halaman `/changelog` langsung dari aplikasi, atau lihat riwayat commit di GitHub.
+| Versi | Tanggal | Highlight |
+|-------|---------|-----------|
+| **v1.6** | 2026-06-12 | Migrasi ke PostgreSQL VPS, perbaikan polygon rendering, input GeoJSON manual, import massal dari SHP BPS 2020 |
+| **v1.5** | 2026-05-11 | Sidebar collapsible, mobile UX, overview bar |
+| **v1.4** | 2026-05-11 | Autocomplete, search/filter/sort di admin warga & kelurahan |
+| **v1.3** | 2026-05-11 | Sistem login JWT, manajemen user, Vercel Analytics |
+| **v1.1** | 2026-05-11 | Provinsi dinamis, koordinat manual, polygon kelurahan kosong |
+| **v1.0** | 2026-05-10 | Rilis pertama — peta interaktif, admin panel, geocoding Nominatim |
+
+Lihat detail lengkap di halaman [`/changelog`](https://klasis.purwandaru.com/changelog) atau riwayat commit di GitHub.
 
 ---
 

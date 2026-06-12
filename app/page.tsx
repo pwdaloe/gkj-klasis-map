@@ -106,6 +106,9 @@ export default function HomePage() {
               <span className="text-xs font-bold text-black">{totalWarga.toLocaleString('id-ID')}</span>
             </div>
           </div>
+          <div className="ml-auto">
+            <span className="text-xs text-gray-400">v1.6</span>
+          </div>
         </div>
 
         {/* Map area */}

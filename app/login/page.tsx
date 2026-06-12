@@ -79,7 +79,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-black mt-6">v1.3</p>
+        <p className="text-center text-xs text-black mt-6">v1.6</p>
       </div>
     </div>
   )
