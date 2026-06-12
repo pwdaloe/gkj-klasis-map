@@ -108,6 +108,15 @@ export default function AdminKelurahanPage() {
         setGeojsonMsg(`Tipe "${t}" tidak didukung. Gunakan Feature, FeatureCollection, Polygon, atau MultiPolygon.`)
         return
       }
+      // Validasi tipe geometry di dalam Feature / FeatureCollection
+      const geometries: string[] = t === 'FeatureCollection'
+        ? (parsed as any).features?.map((f: any) => f?.geometry?.type) ?? []
+        : t === 'Feature' ? [(parsed as any)?.geometry?.type] : [t]
+      const invalid = geometries.filter((g) => !['Polygon', 'MultiPolygon'].includes(g))
+      if (invalid.length > 0) {
+        setGeojsonMsg(`Geometry berisi tipe "${invalid[0]}" — harus Polygon atau MultiPolygon. Di geojson.io, gunakan tool polygon (segi empat/bentuk bebas), bukan line.`)
+        return
+      }
     }
     const res = await fetch('/api/kelurahan', {
       method: 'PUT',
