@@ -55,7 +55,7 @@ export default function MapView({ data, gereja, onSelectKelurahan, focusLatLng }
     data.forEach((item) => {
       if (!item.geojson) return
       const geomType = (item.geojson as any)?.geometry?.type ?? (item.geojson as any)?.type
-      if (!geomType || !['Polygon', 'MultiPolygon'].includes(geomType)) return
+      if (!geomType || !['Polygon', 'MultiPolygon', 'FeatureCollection'].includes(geomType)) return
       const layer = L.geoJSON(item.geojson as any, {
         style: {
           fillColor: getColor(item.total_warga, max),
