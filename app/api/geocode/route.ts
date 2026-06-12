@@ -78,7 +78,8 @@ export async function GET(req: NextRequest) {
   const place = data[0]
   const lat = parseFloat(place.lat)
   const lng = parseFloat(place.lon)
-  const geojson = place.geojson
+  const isPolygon = place.geojson && ['Polygon', 'MultiPolygon'].includes(place.geojson.type)
+  const geojson = isPolygon
     ? { type: 'Feature', geometry: place.geojson, properties: { kode: kel.kode, nama: kel.nama } }
     : null
 
@@ -88,5 +89,5 @@ export async function GET(req: NextRequest) {
     WHERE kode = ${kode}
   `
 
-  return NextResponse.json({ kode, lat, lng, geojson })
+  return NextResponse.json({ kode, lat, lng, geojson, note: geojson ? null : 'Koordinat disimpan, polygon tidak tersedia di Nominatim' })
 }

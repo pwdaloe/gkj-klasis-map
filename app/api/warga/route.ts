@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import sql from '@/lib/db'
 import { haversineKm } from '@/lib/haversine'
 
+function parseGeojson(raw: unknown): object | null {
+  if (!raw) return null
+  if (typeof raw === 'object') return raw as object
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) } catch { return null }
+  }
+  return null
+}
+
 // GET /api/warga?tahun=2026&mode=raw
 // GET /api/warga?tahun=2026&gereja_id=x&kota_kab=y
 export async function GET(req: NextRequest) {
@@ -93,7 +102,7 @@ export async function GET(req: NextRequest) {
       total_warga: 0,
       per_gereja: [] as { gereja_id: string; nama_gereja: string; jumlah: number }[],
       gereja_terdekat: gerejaTerdekat,
-      geojson: kel.geojson ?? null,
+      geojson: parseGeojson(kel.geojson),
       lat: kelLat,
       lng: kelLng,
     }
