@@ -107,7 +107,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="ml-auto">
-            <span className="text-xs text-gray-400">v1.6</span>
+            <span className="text-xs text-gray-400">v1.7</span>
           </div>
         </div>
 

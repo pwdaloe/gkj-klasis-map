@@ -367,12 +367,10 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 
 ## Rencana Pengembangan
 
-### Segera (v1.7)
-- [ ] Tabel referensi wilayah `ref_wilayah` — populate dari SHP BPS 2020 untuk DKI Jakarta, Bekasi, Depok, Bogor
-- [ ] Halaman admin `/admin/ref-wilayah` — browse, search, dan lihat status import
-- [ ] Tombol "Import ke Kelurahan" dari tabel `ref_wilayah` — polygon langsung terisi
-- [ ] Autocomplete nama kelurahan dari `ref_wilayah` saat tambah data warga atau kelurahan baru
+### Segera (v1.8)
 - [ ] Polygon Jatiduren (Jatisampurna, Bekasi) — gambar manual di geojson.io (3 warga)
+- [ ] Export data warga ke format Excel / CSV
+- [ ] Cetak / print ringkasan peta per gereja
 
 ### Jangka Pendek
 - [ ] Export data warga ke format Excel / CSV
@@ -394,6 +392,7 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 - [ ] Mode offline / PWA untuk daerah dengan koneksi terbatas
 
 ### Selesai
+- [x] Tabel ref_wilayah + admin browser + import + autocomplete (v1.7)
 - [x] Migrasi database Supabase → PostgreSQL self-hosted di VPS
 - [x] Perbaikan rendering polygon kelurahan (geojson TEXT → parse di API)
 - [x] Input GeoJSON manual per kelurahan di admin panel + validasi geometry
@@ -405,6 +404,7 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 
 | Versi | Tanggal | Highlight |
 |-------|---------|-----------|
+| **v1.7** | 2026-06-12 | Tabel ref_wilayah 471 kelurahan Jabodetabek, admin browser + import, autocomplete kelurahan baru |
 | **v1.6** | 2026-06-12 | Migrasi ke PostgreSQL VPS, perbaikan polygon rendering, input GeoJSON manual, import massal dari SHP BPS 2020 |
 | **v1.5** | 2026-05-11 | Sidebar collapsible, mobile UX, overview bar |
 | **v1.4** | 2026-05-11 | Autocomplete, search/filter/sort di admin warga & kelurahan |

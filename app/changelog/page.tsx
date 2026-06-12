@@ -1,6 +1,19 @@
 export default function ChangelogPage() {
   const logs = [
     {
+      versi: '1.7',
+      tanggal: '2026-06-12',
+      fitur: [
+        'Tabel referensi wilayah ref_wilayah — 471 kelurahan Jabodetabek dari data SHP BPS 2020',
+        'Halaman admin Ref Wilayah — browse, search, dan filter kelurahan per kota/kabupaten',
+        'Tombol Import per kelurahan — salin ke daftar kelurahan aktif beserta polygon otomatis',
+        'Kode kelurahan di-generate otomatis dari nama, bisa diubah sebelum import',
+        'Badge status import (Sudah / Belum) di setiap baris tabel referensi',
+        'Autocomplete nama kelurahan dari ref_wilayah saat menambah kelurahan baru di admin panel',
+        'Script Python populate_ref_wilayah.py untuk mengisi ulang data referensi dari SHP',
+      ],
+    },
+    {
       versi: '1.6',
       tanggal: '2026-06-12',
       fitur: [
