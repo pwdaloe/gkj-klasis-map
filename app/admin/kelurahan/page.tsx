@@ -13,6 +13,9 @@ export default function AdminKelurahanPage() {
   const [editKoord, setEditKoord] = useState<string | null>(null)
   const [koordForm, setKoordForm] = useState({ lat: '', lng: '' })
   const [koordMsg, setKoordMsg] = useState('')
+  const [editGeoJSON, setEditGeoJSON] = useState<string | null>(null)
+  const [geojsonText, setGeojsonText] = useState('')
+  const [geojsonMsg, setGeojsonMsg] = useState('')
 
   const load = () => fetch('/api/kelurahan').then((r) => r.json()).then(setList)
   useEffect(() => { load() }, [])
@@ -22,7 +25,7 @@ export default function AdminKelurahanPage() {
       .then((rows: { nama: string }[]) => setProvinsiList(rows.map((r) => r.nama)))
   }, [])
 
-  const handleTambah = async (e: React.FormEvent) => {
+  const handleTambah = async (e: React.SyntheticEvent) => {
     e.preventDefault()
     const res = await fetch('/api/kelurahan', {
       method: 'POST',
@@ -83,6 +86,47 @@ export default function AdminKelurahanPage() {
     load()
   }
 
+  const handleBukaEditGeoJSON = (k: Kelurahan) => {
+    setEditGeoJSON(k.kode)
+    setGeojsonText(k.geojson ? JSON.stringify(k.geojson, null, 2) : '')
+    setGeojsonMsg('')
+  }
+
+  const handleSimpanGeoJSON = async (kode: string) => {
+    const kel = list.find((k) => k.kode === kode)
+    if (!kel) return
+    let parsed: object | null = null
+    if (geojsonText.trim()) {
+      try {
+        parsed = JSON.parse(geojsonText)
+      } catch {
+        setGeojsonMsg('JSON tidak valid. Periksa format GeoJSON.')
+        return
+      }
+      const t = (parsed as any)?.type
+      if (!['Feature', 'FeatureCollection', 'Polygon', 'MultiPolygon'].includes(t)) {
+        setGeojsonMsg(`Tipe "${t}" tidak didukung. Gunakan Feature, FeatureCollection, Polygon, atau MultiPolygon.`)
+        return
+      }
+    }
+    const res = await fetch('/api/kelurahan', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kode, nama: kel.nama, kecamatan: kel.kecamatan,
+        kota_kab: kel.kota_kab, provinsi: kel.provinsi,
+        lat: kel.lat, lng: kel.lng,
+        geojson: parsed,
+      }),
+    })
+    const data = await res.json()
+    if (data.error) { setGeojsonMsg('Error: ' + data.error); return }
+    setEditGeoJSON(null)
+    setGeojsonMsg('')
+    setGeocodeResult(`GeoJSON ${kel.nama} berhasil disimpan.`)
+    load()
+  }
+
   // Filter & pagination
   const [search, setSearch] = useState('')
   const [filterKotaKab, setFilterKotaKab] = useState('')
@@ -139,12 +183,14 @@ export default function AdminKelurahanPage() {
 
   const belumGeocode = list.filter((k) => !k.lat).length
   const sudahGeocode = list.filter((k) => k.lat).length
+  const sudahGeojson = list.filter((k) => k.geojson).length
+  const belumGeojson = list.filter((k) => !k.geojson).length
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-black">Data Kelurahan</h2>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
           <p className="text-2xl font-bold text-black">{list.length}</p>
           <p className="text-xs text-black mt-1">Total Kelurahan</p>
@@ -157,13 +203,17 @@ export default function AdminKelurahanPage() {
           <p className="text-2xl font-bold text-orange-500">{belumGeocode}</p>
           <p className="text-xs text-black mt-1">Belum ter-geocode</p>
         </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+          <p className="text-2xl font-bold text-blue-600">{sudahGeojson}</p>
+          <p className="text-xs text-black mt-1">Ada polygon <span className="text-gray-400">/ {belumGeojson} belum</span></p>
+        </div>
       </div>
 
       {belumGeocode > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-orange-800">{belumGeocode} kelurahan belum punya koordinat</p>
-            <p className="text-xs text-orange-600 mt-0.5">Koordinat diperlukan agar polygon tampil di peta.</p>
+            <p className="text-xs text-orange-600 mt-0.5">Koordinat (lat/lng) diperlukan untuk menghitung gereja terdekat.</p>
           </div>
           <button
             onClick={handleGeocodeAll}
@@ -269,6 +319,7 @@ export default function AdminKelurahanPage() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-black uppercase">Kecamatan</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-black uppercase">Kota/Kab</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-black uppercase">Geocode</th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-black uppercase">Polygon</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -285,6 +336,13 @@ export default function AdminKelurahanPage() {
                       <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">OK</span>
                     ) : (
                       <span className="inline-block bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full">Belum</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {k.geojson ? (
+                      <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full">Ada</span>
+                    ) : (
+                      <span className="inline-block bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full">Kosong</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
@@ -306,11 +364,17 @@ export default function AdminKelurahanPage() {
                     >
                       {editData === k.kode ? 'Batal Edit' : 'Edit Data'}
                     </button>
+                    <button
+                      onClick={() => editGeoJSON === k.kode ? setEditGeoJSON(null) : handleBukaEditGeoJSON(k)}
+                      className="text-purple-600 hover:text-purple-800 text-xs underline"
+                    >
+                      {editGeoJSON === k.kode ? 'Batal' : 'GeoJSON'}
+                    </button>
                   </td>
                 </tr>
                 {editData === k.kode && (
                   <tr className="bg-green-50">
-                    <td colSpan={6} className="px-4 py-3">
+                    <td colSpan={7} className="px-4 py-3">
                       <div className="grid grid-cols-4 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-black mb-1">Nama Kelurahan</label>
@@ -362,7 +426,7 @@ export default function AdminKelurahanPage() {
                 )}
                 {editKoord === k.kode && (
                   <tr className="bg-blue-50">
-                    <td colSpan={6} className="px-4 py-3">
+                    <td colSpan={7} className="px-4 py-3">
                       <div className="flex items-end gap-3">
                         <div>
                           <label className="block text-xs font-medium text-black mb-1">
@@ -396,6 +460,46 @@ export default function AdminKelurahanPage() {
                         <p className="text-xs text-black ml-2">
                           Cara ambil koordinat: buka Google Maps → klik kanan lokasi kelurahan → salin dua angka yang muncul
                         </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {editGeoJSON === k.kode && (
+                  <tr className="bg-purple-50">
+                    <td colSpan={7} className="px-4 py-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-medium text-black">
+                            Paste GeoJSON polygon
+                          </label>
+                          <span className="text-xs text-gray-500">
+                            (Feature, FeatureCollection, Polygon, atau MultiPolygon) — kosongkan untuk hapus polygon
+                          </span>
+                        </div>
+                        <textarea
+                          value={geojsonText}
+                          onChange={(e) => setGeojsonText(e.target.value)}
+                          rows={6}
+                          placeholder={'{\n  "type": "Feature",\n  "geometry": { "type": "Polygon", "coordinates": [...] },\n  "properties": {}\n}'}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono"
+                        />
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => handleSimpanGeoJSON(k.kode)}
+                            className="bg-purple-700 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-purple-800"
+                          >
+                            Simpan
+                          </button>
+                          {geojsonMsg && <span className="text-xs text-red-600">{geojsonMsg}</span>}
+                          <a
+                            href="https://geojson.io"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 underline"
+                          >
+                            Buat polygon di geojson.io →
+                          </a>
+                        </div>
                       </div>
                     </td>
                   </tr>

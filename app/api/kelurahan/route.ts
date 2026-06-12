@@ -17,15 +17,30 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const { kode, nama, kecamatan, kota_kab, provinsi, lat, lng } = await req.json()
-  const [row] = await sql`
-    UPDATE kelurahan
-    SET nama = ${nama}, kecamatan = ${kecamatan}, kota_kab = ${kota_kab},
-        provinsi = ${provinsi},
-        lat = ${lat ?? null}, lng = ${lng ?? null}
-    WHERE kode = ${kode}
-    RETURNING *
-  `
+  const body = await req.json()
+  const { kode, nama, kecamatan, kota_kab, provinsi, lat, lng } = body
+  const geojsonRaw = body.geojson
+  const geojsonVal = geojsonRaw !== undefined
+    ? (geojsonRaw ? JSON.stringify(geojsonRaw) : null)
+    : undefined
+
+  const [row] = geojsonVal !== undefined
+    ? await sql`
+        UPDATE kelurahan
+        SET nama = ${nama}, kecamatan = ${kecamatan}, kota_kab = ${kota_kab},
+            provinsi = ${provinsi}, lat = ${lat ?? null}, lng = ${lng ?? null},
+            geojson = ${geojsonVal}
+        WHERE kode = ${kode}
+        RETURNING *
+      `
+    : await sql`
+        UPDATE kelurahan
+        SET nama = ${nama}, kecamatan = ${kecamatan}, kota_kab = ${kota_kab},
+            provinsi = ${provinsi}, lat = ${lat ?? null}, lng = ${lng ?? null}
+        WHERE kode = ${kode}
+        RETURNING *
+      `
+
   return NextResponse.json(row)
 }
 
