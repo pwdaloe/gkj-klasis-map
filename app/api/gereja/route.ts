@@ -1,41 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
 
 export async function GET() {
-  const { data, error } = await supabase.from('gereja').select('*').order('nama')
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const rows = await sql`SELECT * FROM gereja ORDER BY nama`
+  return NextResponse.json(rows)
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { gereja_id, nama, alamat, lat, lng } = body
-  const { data, error } = await supabaseAdmin
-    .from('gereja')
-    .insert({ gereja_id, nama, alamat, lat, lng })
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  const { gereja_id, nama, alamat, lat, lng } = await req.json()
+  const [row] = await sql`
+    INSERT INTO gereja (gereja_id, nama, alamat, lat, lng)
+    VALUES (${gereja_id}, ${nama}, ${alamat}, ${lat}, ${lng})
+    RETURNING *
+  `
+  return NextResponse.json(row, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json()
-  const { gereja_id, nama, alamat, lat, lng } = body
-  const { data, error } = await supabaseAdmin
-    .from('gereja')
-    .update({ nama, alamat, lat, lng })
-    .eq('gereja_id', gereja_id)
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const { gereja_id, nama, alamat, lat, lng } = await req.json()
+  const [row] = await sql`
+    UPDATE gereja
+    SET nama = ${nama}, alamat = ${alamat}, lat = ${lat}, lng = ${lng}
+    WHERE gereja_id = ${gereja_id}
+    RETURNING *
+  `
+  return NextResponse.json(row)
 }
 
 export async function DELETE(req: NextRequest) {
   const gereja_id = req.nextUrl.searchParams.get('gereja_id')
   if (!gereja_id) return NextResponse.json({ error: 'gereja_id diperlukan' }, { status: 400 })
-  const { error } = await supabaseAdmin.from('gereja').delete().eq('gereja_id', gereja_id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await sql`DELETE FROM gereja WHERE gereja_id = ${gereja_id}`
   return NextResponse.json({ success: true })
 }

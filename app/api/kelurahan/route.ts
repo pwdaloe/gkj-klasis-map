@@ -1,47 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('kelurahan')
-    .select('*')
-    .order('nama')
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const rows = await sql`SELECT * FROM kelurahan ORDER BY nama`
+  return NextResponse.json(rows)
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { kode, nama, kecamatan, kota_kab, provinsi } = body
-  const { data, error } = await supabaseAdmin
-    .from('kelurahan')
-    .insert({ kode, nama, kecamatan, kota_kab, provinsi })
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  const { kode, nama, kecamatan, kota_kab, provinsi } = await req.json()
+  const [row] = await sql`
+    INSERT INTO kelurahan (kode, nama, kecamatan, kota_kab, provinsi)
+    VALUES (${kode}, ${nama}, ${kecamatan}, ${kota_kab}, ${provinsi})
+    RETURNING *
+  `
+  return NextResponse.json(row, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json()
-  const { kode, nama, kecamatan, kota_kab, provinsi, lat, lng } = body
-  const updates: Record<string, unknown> = { nama, kecamatan, kota_kab, provinsi }
-  if (lat !== undefined) updates.lat = lat
-  if (lng !== undefined) updates.lng = lng
-  const { data, error } = await supabaseAdmin
-    .from('kelurahan')
-    .update(updates)
-    .eq('kode', kode)
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const { kode, nama, kecamatan, kota_kab, provinsi, lat, lng } = await req.json()
+  const [row] = await sql`
+    UPDATE kelurahan
+    SET nama = ${nama}, kecamatan = ${kecamatan}, kota_kab = ${kota_kab},
+        provinsi = ${provinsi},
+        lat = ${lat ?? null}, lng = ${lng ?? null}
+    WHERE kode = ${kode}
+    RETURNING *
+  `
+  return NextResponse.json(row)
 }
 
 export async function DELETE(req: NextRequest) {
   const kode = req.nextUrl.searchParams.get('kode')
   if (!kode) return NextResponse.json({ error: 'kode diperlukan' }, { status: 400 })
-  const { error } = await supabaseAdmin.from('kelurahan').delete().eq('kode', kode)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await sql`DELETE FROM kelurahan WHERE kode = ${kode}`
   return NextResponse.json({ success: true })
 }

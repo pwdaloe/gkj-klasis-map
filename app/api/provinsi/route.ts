@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import sql from '@/lib/db'
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('ref_provinsi')
-    .select('nama')
-    .order('nama')
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const rows = await sql`SELECT nama FROM ref_provinsi ORDER BY nama`
+  return NextResponse.json(rows)
 }

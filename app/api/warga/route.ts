@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
+import { haversineKm } from '@/lib/haversine'
 
-// GET /api/warga?tahun=2026&mode=raw — raw rows untuk admin table
-// GET /api/warga?tahun=2026&gereja_id=x&kota_kab=y — agregasi untuk peta
+// GET /api/warga?tahun=2026&mode=raw
+// GET /api/warga?tahun=2026&gereja_id=x&kota_kab=y
 export async function GET(req: NextRequest) {
   const tahun = req.nextUrl.searchParams.get('tahun')
   const gereja_id = req.nextUrl.searchParams.get('gereja_id')
@@ -11,63 +12,73 @@ export async function GET(req: NextRequest) {
 
   if (!tahun) return NextResponse.json({ error: 'Parameter tahun diperlukan' }, { status: 400 })
 
-  // Mode raw: kembalikan baris asli fakta_warga dengan id untuk keperluan edit/hapus
+  const tahunInt = parseInt(tahun)
+
   if (mode === 'raw') {
-    const { data, error } = await supabaseAdmin
-      .from('fakta_warga')
-      .select(`
-        id, tahun, kelurahan_kode, gereja_id, kelompok_id, jumlah_warga,
-        kelurahan:kelurahan_kode ( nama ),
-        gereja:gereja_id ( nama )
-      `)
-      .eq('tahun', parseInt(tahun))
-      .order('kelurahan_kode')
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data)
+    const rows = await sql`
+      SELECT
+        fw.id, fw.tahun, fw.kelurahan_kode, fw.gereja_id, fw.kelompok_id, fw.jumlah_warga,
+        k.nama AS kelurahan_nama,
+        g.nama AS gereja_nama
+      FROM fakta_warga fw
+      LEFT JOIN kelurahan k ON k.kode = fw.kelurahan_kode
+      LEFT JOIN gereja g ON g.gereja_id = fw.gereja_id
+      WHERE fw.tahun = ${tahunInt}
+      ORDER BY fw.kelurahan_kode
+    `
+    const mapped = rows.map((r) => ({
+      ...r,
+      kelurahan: { nama: r.kelurahan_nama },
+      gereja: { nama: r.gereja_nama },
+    }))
+    return NextResponse.json(mapped)
   }
 
-  if (!tahun) return NextResponse.json({ error: 'Parameter tahun diperlukan' }, { status: 400 })
+  // Agregasi untuk peta
+  const fwQuery = gereja_id
+    ? await sql`
+        SELECT fw.kelurahan_kode, fw.gereja_id, fw.jumlah_warga,
+          k.nama AS kel_nama, k.kecamatan, k.kota_kab, k.lat AS kel_lat, k.lng AS kel_lng, k.geojson,
+          g.nama AS gereja_nama, g.lat AS gereja_lat, g.lng AS gereja_lng
+        FROM fakta_warga fw
+        LEFT JOIN kelurahan k ON k.kode = fw.kelurahan_kode
+        LEFT JOIN gereja g ON g.gereja_id = fw.gereja_id
+        WHERE fw.tahun = ${tahunInt} AND fw.gereja_id = ${gereja_id}
+      `
+    : await sql`
+        SELECT fw.kelurahan_kode, fw.gereja_id, fw.jumlah_warga,
+          k.nama AS kel_nama, k.kecamatan, k.kota_kab, k.lat AS kel_lat, k.lng AS kel_lng, k.geojson,
+          g.nama AS gereja_nama, g.lat AS gereja_lat, g.lng AS gereja_lng
+        FROM fakta_warga fw
+        LEFT JOIN kelurahan k ON k.kode = fw.kelurahan_kode
+        LEFT JOIN gereja g ON g.gereja_id = fw.gereja_id
+        WHERE fw.tahun = ${tahunInt}
+      `
 
-  let query = supabase
-    .from('fakta_warga')
-    .select(`
-      kelurahan_kode,
-      gereja_id,
-      jumlah_warga,
-      kelurahan:kelurahan_kode ( nama, kecamatan, kota_kab, lat, lng, geojson ),
-      gereja:gereja_id ( nama, lat, lng )
-    `)
-    .eq('tahun', parseInt(tahun))
+  const semuaGereja = await sql`SELECT gereja_id, nama, lat, lng FROM gereja`
 
-  if (gereja_id) query = query.eq('gereja_id', gereja_id)
+  const kelurahanBaseQuery = kota_kab
+    ? await sql`
+        SELECT kode, nama, kecamatan, kota_kab, lat, lng, geojson
+        FROM kelurahan
+        WHERE geojson IS NOT NULL AND kota_kab = ${kota_kab}
+      `
+    : await sql`
+        SELECT kode, nama, kecamatan, kota_kab, lat, lng, geojson
+        FROM kelurahan
+        WHERE geojson IS NOT NULL
+      `
 
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  const filtered = kota_kab ? fwQuery.filter((r) => r.kota_kab === kota_kab) : fwQuery
 
-  // Ambil semua gereja untuk hitung jarak
-  const { data: semuaGereja } = await supabase.from('gereja').select('gereja_id, nama, lat, lng')
-
-  // Filter kota_kab di sini (setelah join)
-  const filtered = kota_kab
-    ? data?.filter((d: any) => d.kelurahan?.kota_kab === kota_kab)
-    : data
-
-  // Ambil semua kelurahan yang punya geojson sebagai base layer
-  let kelurahanQuery = supabase
-    .from('kelurahan')
-    .select('kode, nama, kecamatan, kota_kab, lat, lng, geojson')
-    .not('geojson', 'is', null)
-  if (kota_kab) kelurahanQuery = kelurahanQuery.eq('kota_kab', kota_kab)
-  const { data: semuaKelurahan } = await kelurahanQuery
-
-  const { haversineKm } = await import('@/lib/haversine')
-
-  const buildEntry = (kode: string, kel: any) => {
+  const buildEntry = (kode: string, kel: Record<string, unknown>) => {
     let gerejaTerdekat = null
-    if (kel?.lat && kel?.lng && semuaGereja) {
+    const kelLat = kel.lat as number | null
+    const kelLng = kel.lng as number | null
+    if (kelLat && kelLng) {
       let minJarak = Infinity
       for (const g of semuaGereja) {
-        const jarak = haversineKm(kel.lat, kel.lng, g.lat, g.lng)
+        const jarak = haversineKm(kelLat, kelLng, g.lat as number, g.lng as number)
         if (jarak < minJarak) {
           minJarak = jarak
           gerejaTerdekat = { nama: g.nama, jarak_km: Math.round(jarak * 10) / 10 }
@@ -76,39 +87,42 @@ export async function GET(req: NextRequest) {
     }
     return {
       kelurahan_kode: kode,
-      nama_kelurahan: kel?.nama ?? kode,
-      kecamatan: kel?.kecamatan ?? '',
-      kota_kab: kel?.kota_kab ?? '',
+      nama_kelurahan: (kel.nama as string) ?? kode,
+      kecamatan: (kel.kecamatan as string) ?? '',
+      kota_kab: (kel.kota_kab as string) ?? '',
       total_warga: 0,
-      per_gereja: [],
+      per_gereja: [] as { gereja_id: string; nama_gereja: string; jumlah: number }[],
       gereja_terdekat: gerejaTerdekat,
-      geojson: kel?.geojson ?? null,
-      lat: kel?.lat ?? null,
-      lng: kel?.lng ?? null,
+      geojson: kel.geojson ?? null,
+      lat: kelLat,
+      lng: kelLng,
     }
   }
 
-  // Isi map dengan semua kelurahan ber-geojson (total_warga = 0 sebagai default)
-  const map = new Map<string, any>()
-  for (const kel of semuaKelurahan ?? []) {
-    map.set(kel.kode, buildEntry(kel.kode, kel))
+  const map = new Map<string, ReturnType<typeof buildEntry>>()
+
+  for (const kel of kelurahanBaseQuery) {
+    map.set(kel.kode as string, buildEntry(kel.kode as string, kel as Record<string, unknown>))
   }
 
-  // Overlay data fakta_warga ke dalam map
-  for (const row of filtered ?? []) {
-    const kode = row.kelurahan_kode
-    const kel = row.kelurahan as any
-
+  for (const row of filtered) {
+    const kode = row.kelurahan_kode as string
     if (!map.has(kode)) {
-      map.set(kode, buildEntry(kode, kel))
+      map.set(kode, buildEntry(kode, {
+        nama: row.kel_nama,
+        kecamatan: row.kecamatan,
+        kota_kab: row.kota_kab,
+        lat: row.kel_lat,
+        lng: row.kel_lng,
+        geojson: row.geojson,
+      }))
     }
-
-    const entry = map.get(kode)
-    entry.total_warga += row.jumlah_warga
+    const entry = map.get(kode)!
+    entry.total_warga += row.jumlah_warga as number
     entry.per_gereja.push({
-      gereja_id: row.gereja_id,
-      nama_gereja: (row.gereja as any)?.nama ?? row.gereja_id,
-      jumlah: row.jumlah_warga,
+      gereja_id: row.gereja_id as string,
+      nama_gereja: (row.gereja_nama as string) ?? (row.gereja_id as string),
+      jumlah: row.jumlah_warga as number,
     })
   }
 
@@ -116,35 +130,27 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { tahun, kelurahan_kode, gereja_id, kelompok_id, jumlah_warga } = body
-  const { data, error } = await supabaseAdmin
-    .from('fakta_warga')
-    .upsert(
-      { tahun, kelurahan_kode, gereja_id, kelompok_id: kelompok_id ?? null, jumlah_warga },
-      { onConflict: 'tahun,kelurahan_kode,gereja_id,kelompok_id' }
-    )
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  const { tahun, kelurahan_kode, gereja_id, kelompok_id, jumlah_warga } = await req.json()
+  const [row] = await sql`
+    INSERT INTO fakta_warga (tahun, kelurahan_kode, gereja_id, kelompok_id, jumlah_warga)
+    VALUES (${tahun}, ${kelurahan_kode}, ${gereja_id}, ${kelompok_id ?? null}, ${jumlah_warga})
+    ON CONFLICT (tahun, kelurahan_kode, gereja_id, kelompok_id)
+    DO UPDATE SET jumlah_warga = EXCLUDED.jumlah_warga
+    RETURNING *
+  `
+  return NextResponse.json(row, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
   const { id, jumlah_warga } = await req.json()
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
-  const { error } = await supabaseAdmin
-    .from('fakta_warga')
-    .update({ jumlah_warga })
-    .eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await sql`UPDATE fakta_warga SET jumlah_warga = ${jumlah_warga} WHERE id = ${id}`
   return NextResponse.json({ success: true })
 }
 
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
-  const { error } = await supabaseAdmin.from('fakta_warga').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await sql`DELETE FROM fakta_warga WHERE id = ${id}`
   return NextResponse.json({ success: true })
 }

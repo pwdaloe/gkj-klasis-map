@@ -1,7 +1,6 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase-browser'
 import { Gereja, WargaPerKelurahan } from '@/lib/types'
 
 type Props = {
@@ -26,8 +25,7 @@ export default function Sidebar({
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/auth', { method: 'POST' })
     router.push('/login')
     router.refresh()
   }

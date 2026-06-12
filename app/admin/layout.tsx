@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase-browser'
 
 const navItems = [
   { href: '/admin/gereja', label: 'Gereja' },
@@ -16,8 +15,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter()
 
   const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch('/api/auth', { method: 'POST' })
     router.push('/login')
     router.refresh()
   }

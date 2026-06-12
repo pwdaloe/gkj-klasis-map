@@ -1,45 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
 
 export async function GET(req: NextRequest) {
   const gereja_id = req.nextUrl.searchParams.get('gereja_id')
-  let query = supabase.from('kelompok').select('*').order('nama')
-  if (gereja_id) query = query.eq('gereja_id', gereja_id)
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const rows = gereja_id
+    ? await sql`SELECT * FROM kelompok WHERE gereja_id = ${gereja_id} ORDER BY nama`
+    : await sql`SELECT * FROM kelompok ORDER BY nama`
+  return NextResponse.json(rows)
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  const { gereja_id, kode, nama } = body
+  const { gereja_id, kode, nama } = await req.json()
   const kelompok_id = `${gereja_id}-${kode.toLowerCase()}`
-  const { data, error } = await supabaseAdmin
-    .from('kelompok')
-    .insert({ kelompok_id, gereja_id, kode, nama })
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data, { status: 201 })
+  const [row] = await sql`
+    INSERT INTO kelompok (kelompok_id, gereja_id, kode, nama)
+    VALUES (${kelompok_id}, ${gereja_id}, ${kode}, ${nama})
+    RETURNING *
+  `
+  return NextResponse.json(row, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json()
-  const { kelompok_id, kode, nama } = body
-  const { data, error } = await supabaseAdmin
-    .from('kelompok')
-    .update({ kode, nama })
-    .eq('kelompok_id', kelompok_id)
-    .select()
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const { kelompok_id, kode, nama } = await req.json()
+  const [row] = await sql`
+    UPDATE kelompok
+    SET kode = ${kode}, nama = ${nama}
+    WHERE kelompok_id = ${kelompok_id}
+    RETURNING *
+  `
+  return NextResponse.json(row)
 }
 
 export async function DELETE(req: NextRequest) {
   const kelompok_id = req.nextUrl.searchParams.get('kelompok_id')
   if (!kelompok_id) return NextResponse.json({ error: 'kelompok_id diperlukan' }, { status: 400 })
-  const { error } = await supabaseAdmin.from('kelompok').delete().eq('kelompok_id', kelompok_id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  await sql`DELETE FROM kelompok WHERE kelompok_id = ${kelompok_id}`
   return NextResponse.json({ success: true })
 }

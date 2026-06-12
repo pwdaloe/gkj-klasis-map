@@ -1,39 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
+import { hashPassword } from '@/lib/auth'
 
 export async function GET() {
-  const { data, error } = await supabaseAdmin
-    .from('user_profiles')
-    .select('*')
-    .order('created_at')
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  const users = await sql`SELECT * FROM user_profiles ORDER BY created_at`
+  return NextResponse.json(users)
 }
 
 export async function POST(req: NextRequest) {
   const { email, password, nama, role } = await req.json()
 
-  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  })
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })
+  const passwordHash = await hashPassword(password)
 
-  const { error: profileError } = await supabaseAdmin
-    .from('user_profiles')
-    .insert({ id: authData.user.id, email, nama, role })
-  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 })
+  await sql`
+    INSERT INTO user_profiles (email, password_hash, nama, role, must_change_password, aktif)
+    VALUES (${email}, ${passwordHash}, ${nama}, ${role}, TRUE, TRUE)
+  `
 
   return NextResponse.json({ success: true }, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
   const { id, nama, role, aktif } = await req.json()
-  const { error } = await supabaseAdmin
-    .from('user_profiles')
-    .update({ nama, role, aktif })
-    .eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await sql`
+    UPDATE user_profiles
+    SET nama = ${nama}, role = ${role}, aktif = ${aktif}
+    WHERE id = ${id}
+  `
+
   return NextResponse.json({ success: true })
 }

@@ -29,8 +29,6 @@ Aplikasi ini dibangun untuk membantu GKJ Klasis Jakarta Bagian Timur dalam:
 - Memberikan visualisasi peta interaktif dengan gradasi warna berdasarkan kepadatan warga
 - Menyediakan admin panel bagi petugas untuk input dan manajemen data
 
-**Live app**: tersedia melalui Vercel deployment (URL di konfigurasi Vercel project).
-
 ---
 
 ## Fitur Utama
@@ -57,9 +55,10 @@ Aplikasi ini dibangun untuk membantu GKJ Klasis Jakarta Bagian Timur dalam:
 - **Data Warga** — input jumlah warga per kombinasi tahun + kelurahan + gereja, autocomplete, filter, sort, edit & hapus
 
 ### Manajemen Pengguna
-- Login email + password via Supabase Auth
+- Login email + password dengan autentikasi JWT (HTTP-only cookie)
 - Tiga level akses: **Viewer**, **Entry Data**, **Super Admin**
 - Halaman manajemen user (Super Admin only): tambah user, ubah role, aktifkan/nonaktifkan akun
+- User baru wajib mengganti password saat login pertama
 
 ---
 
@@ -67,13 +66,16 @@ Aplikasi ini dibangun untuk membantu GKJ Klasis Jakarta Bagian Timur dalam:
 
 | Lapisan | Teknologi | Versi |
 |---|---|---|
-| Framework | [Next.js](https://nextjs.org) (App Router) | ^15 |
+| Framework | [Next.js](https://nextjs.org) (App Router) | 16.x |
 | Language | TypeScript | ^5 |
-| UI | React + [Tailwind CSS v4](https://tailwindcss.com) | ^19 / ^4 |
+| UI | React + [Tailwind CSS v4](https://tailwindcss.com) | 19.x / ^4 |
 | Peta/GIS | [Leaflet](https://leafletjs.com) + react-leaflet | ^5 |
-| Database & Auth | [Supabase](https://supabase.com) (PostgreSQL + RLS + Auth) | ^2 |
+| Database | PostgreSQL (self-hosted di VPS) | 16 |
+| DB Client | [postgres.js](https://github.com/porsager/postgres) | ^3 |
+| Auth | Custom JWT dengan `bcryptjs` + `jose` | — |
 | Geocoding | [Nominatim](https://nominatim.openstreetmap.org) (OpenStreetMap) | Free |
-| Deployment | [Vercel](https://vercel.com) | — |
+| Runtime | Node.js + PM2 | 20+ |
+| Web Server | Nginx (reverse proxy) | — |
 | Analytics | [Vercel Analytics](https://vercel.com/analytics) | ^2 |
 
 ---
@@ -94,19 +96,21 @@ Browser
   │     ├── /warga                  → input/edit data warga
   │     └── /users                  → manajemen user (Super Admin)
   │
-  ├── /login                        → Supabase Auth
+  ├── /login                        → form login → POST /api/auth/login
+  ├── /change-password              → wajib diisi user baru saat login pertama
   └── /changelog                    → halaman publik
-  
+
   │
   Next.js API Routes (/app/api/*)
   │
-  Supabase (PostgreSQL + Auth + RLS)
+  PostgreSQL (self-hosted di VPS via postgres.js)
 ```
 
 **Pola penting:**
 - `MapView.tsx` di-load dengan `next/dynamic` + `ssr: false` karena Leaflet hanya bisa jalan di browser
-- Supabase client menggunakan singleton pattern (lazy-loaded via Proxy) di `lib/supabase.ts`
-- Autentikasi dan proteksi route dilakukan di `middleware.ts` sebelum request sampai ke halaman
+- Autentikasi menggunakan JWT disimpan sebagai HTTP-only cookie `session`, diverifikasi di `middleware.ts` via `jose`
+- Password di-hash dengan `bcryptjs` (cost factor 12)
+- User baru memiliki flag `must_change_password = TRUE` — middleware redirect ke `/change-password` sebelum bisa akses halaman lain
 - Kalkulasi jarak gereja–kelurahan menggunakan Haversine formula (`lib/haversine.ts`)
 
 ---
@@ -119,7 +123,7 @@ kelompok        — kelompok/wilayah per gereja (kelompok_id PK, gereja_id FK, k
 kelurahan       — data kelurahan (kode PK, nama, kecamatan, kota_kab, provinsi, lat, lng, geojson JSONB)
 fakta_warga     — jumlah warga (id UUID PK, tahun, kelurahan_kode FK, gereja_id FK, kelompok_id FK, jumlah_warga)
 ref_provinsi    — referensi provinsi
-user_profiles   — profil pengguna (id FK → auth.users, nama, role ENUM, aktif BOOLEAN)
+user_profiles   — profil pengguna (id UUID PK, email, password_hash, nama, role, aktif, must_change_password)
 ```
 
 **Relasi:**
@@ -127,12 +131,13 @@ user_profiles   — profil pengguna (id FK → auth.users, nama, role ENUM, akti
 gereja ──< kelompok
 gereja ──< fakta_warga >── kelurahan
 kelompok ──< fakta_warga
-auth.users ──── user_profiles
+user_profiles (mandiri — tidak bergantung pada auth eksternal)
 ```
 
 **Constraints penting:**
 - `fakta_warga`: UNIQUE(tahun, kelurahan_kode, gereja_id, kelompok_id)
 - `fakta_warga`: CHECK(jumlah_warga >= 0)
+- `user_profiles`: email UNIQUE NOT NULL
 - Trigger: auto-update `updated_at` saat fakta_warga diubah
 
 > File migrasi lengkap ada di `supabase_migration.sql` di root project.
@@ -148,48 +153,55 @@ gkj-klasis-map/
 │   ├── page.tsx                # Halaman utama (peta)
 │   ├── globals.css
 │   ├── changelog/page.tsx      # Halaman changelog (publik)
-│   ├── login/page.tsx          # Halaman login
+│   ├── login/page.tsx          # Halaman login (POST ke /api/auth/login)
+│   ├── change-password/page.tsx # Ganti password saat login pertama
 │   ├── admin/
-│   │   ├── layout.tsx          # Layout admin (header + navigasi)
+│   │   ├── layout.tsx          # Layout admin (header + navigasi + logout)
 │   │   ├── gereja/page.tsx
 │   │   ├── kelompok/page.tsx
 │   │   ├── kelurahan/page.tsx  # Termasuk geocoding otomatis
 │   │   ├── warga/page.tsx
 │   │   └── users/page.tsx      # Super Admin only
 │   └── api/
+│       ├── auth/
+│       │   ├── route.ts                  # POST logout (hapus cookie session)
+│       │   ├── login/route.ts            # POST login → set JWT cookie
+│       │   └── change-password/route.ts  # POST ganti password
 │       ├── gereja/route.ts
 │       ├── kelompok/route.ts
 │       ├── kelurahan/route.ts
 │       ├── warga/route.ts      # GET + aggregasi untuk peta
 │       ├── users/route.ts
-│       ├── auth/route.ts
 │       ├── provinsi/route.ts
 │       └── geocode/route.ts    # Nominatim geocoding
 ├── components/
 │   ├── map/
 │   │   ├── MapView.tsx         # Komponen peta Leaflet
-│   │   ├── Sidebar.tsx         # Filter sidebar
+│   │   ├── Sidebar.tsx         # Filter sidebar + tombol logout
 │   │   └── InfoPanel.tsx       # Panel info saat klik polygon
 │   └── admin/                  # Komponen-komponen admin
 ├── lib/
 │   ├── types.ts                # TypeScript types (Gereja, Kelurahan, dll)
-│   ├── supabase.ts             # Supabase server client (singleton)
-│   ├── supabase-browser.ts     # Supabase browser client
+│   ├── db.ts                   # PostgreSQL client (postgres.js singleton)
+│   ├── auth.ts                 # JWT helper (signToken, verifyToken, hashPassword)
 │   └── haversine.ts            # Kalkulasi jarak haversine
-├── middleware.ts               # Proteksi route & auth
+├── middleware.ts               # Proteksi route, verifikasi JWT, redirect change-password
 ├── next.config.ts
 ├── supabase_migration.sql      # Skema database lengkap
-└── .env.local                  # Kredensial Supabase (jangan di-commit)
+└── .env.local                  # Environment variables (jangan di-commit)
 ```
 
 ---
 
 ## API Reference
 
-Semua endpoint membutuhkan session valid kecuali yang ditandai *publik*.
+Semua endpoint membutuhkan cookie `session` valid kecuali `/api/auth/login`.
 
 | Method | Endpoint | Deskripsi |
 |--------|----------|-----------|
+| POST | `/api/auth/login` | Login, set cookie JWT |
+| POST | `/api/auth` | Logout, hapus cookie |
+| POST | `/api/auth/change-password` | Ganti password (user baru) |
 | GET | `/api/gereja` | Daftar semua gereja |
 | POST | `/api/gereja` | Tambah gereja baru |
 | PUT | `/api/gereja` | Update data gereja |
@@ -204,8 +216,8 @@ Semua endpoint membutuhkan session valid kecuali yang ditandai *publik*.
 | DELETE | `/api/kelurahan?kode=` | Hapus kelurahan |
 | GET | `/api/warga?tahun=&mode=raw` | Data warga mentah (admin) |
 | GET | `/api/warga?tahun=&gereja_id=&kota_kab=` | Data warga teragregasi (peta) |
-| POST | `/api/warga` | Tambah data warga |
-| PUT | `/api/warga` | Update data warga |
+| POST | `/api/warga` | Tambah / upsert data warga |
+| PUT | `/api/warga` | Update jumlah warga |
 | DELETE | `/api/warga?id=` | Hapus data warga |
 | GET | `/api/users` | Daftar user (Super Admin) |
 | POST | `/api/users` | Tambah user baru |
@@ -219,9 +231,9 @@ Semua endpoint membutuhkan session valid kecuali yang ditandai *publik*.
 ## Setup & Menjalankan Lokal
 
 ### Prasyarat
-- Node.js v18+
-- npm v9+
-- Akun Supabase (atau self-hosted)
+- Node.js v20+
+- npm v10+
+- PostgreSQL 16 (lokal atau di VPS)
 
 ### 1. Clone & Install
 
@@ -231,18 +243,29 @@ cd gkj-klasis-map
 npm install
 ```
 
-### 2. Setup Supabase
+### 2. Setup PostgreSQL
 
-Buat project baru di [supabase.com](https://supabase.com), lalu jalankan file migrasi:
+Buat database dan user:
 
-```bash
-# Di Supabase Dashboard → SQL Editor, paste dan run isi file:
-supabase_migration.sql
+```sql
+CREATE USER gkj_user WITH PASSWORD 'password_anda';
+CREATE DATABASE gkj_klasis OWNER gkj_user;
+GRANT ALL PRIVILEGES ON DATABASE gkj_klasis TO gkj_user;
 ```
 
-Atau gunakan Supabase CLI:
+Jalankan file migrasi:
+
 ```bash
-supabase db push
+psql -U gkj_user -d gkj_klasis -f supabase_migration.sql
+```
+
+Tambahkan kolom auth mandiri:
+
+```sql
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE user_profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
 ```
 
 ### 3. Konfigurasi Environment
@@ -250,16 +273,24 @@ supabase db push
 Buat file `.env.local` di root project:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+DATABASE_URL=postgresql://gkj_user:password_anda@localhost:5432/gkj_klasis
+JWT_SECRET=random-string-panjang-minimal-32-karakter
+APP_URL=http://localhost:3000
 ```
-
-Kredensial tersedia di Supabase Dashboard → Project Settings → API.
 
 > **Perhatian:** Jangan pernah commit `.env.local` ke repository. File ini sudah masuk `.gitignore`.
 
-### 4. Jalankan Development Server
+### 4. Buat User Pertama
+
+Masukkan user Super Admin secara manual ke database:
+
+```sql
+-- Hash password dulu dengan bcryptjs (cost 12), atau gunakan script
+INSERT INTO user_profiles (id, email, password_hash, nama, role, aktif, must_change_password)
+VALUES (gen_random_uuid(), 'admin@email.com', '[bcrypt_hash]', 'Admin', 'superadmin', TRUE, FALSE);
+```
+
+### 5. Jalankan Development Server
 
 ```bash
 npm run dev
@@ -267,7 +298,7 @@ npm run dev
 
 Buka [http://localhost:3000](http://localhost:3000).
 
-### 5. Build untuk Production
+### 6. Build untuk Production
 
 ```bash
 npm run build
@@ -284,7 +315,7 @@ npm start
 | **Entry Data** | ✓ | ✓ | — |
 | **Super Admin** | ✓ | ✓ | ✓ |
 
-User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-registration.
+User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-registration. User baru menerima password sementara dan wajib menggantinya saat login pertama.
 
 ---
 

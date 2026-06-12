@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import sql from '@/lib/db'
 
-// POST /api/geocode
-// Trigger geocoding semua kelurahan yang belum punya koordinat
-export async function POST(_req: NextRequest) {
-  const { data: kelurahan, error } = await supabaseAdmin
-    .from('kelurahan')
-    .select('kode, nama, kecamatan, kota_kab, provinsi')
-    .is('lat', null)
+// POST /api/geocode — geocode semua kelurahan yang belum punya koordinat
+export async function POST() {
+  const kelurahan = await sql`
+    SELECT kode, nama, kecamatan, kota_kab, provinsi
+    FROM kelurahan
+    WHERE lat IS NULL
+  `
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!kelurahan || kelurahan.length === 0)
+  if (!kelurahan.length)
     return NextResponse.json({ message: 'Semua kelurahan sudah ter-geocode', updated: 0 })
 
   const results = { updated: 0, failed: [] as string[] }
@@ -37,13 +36,13 @@ export async function POST(_req: NextRequest) {
         ? { type: 'Feature', geometry: place.geojson, properties: { kode: kel.kode, nama: kel.nama } }
         : null
 
-      await supabaseAdmin
-        .from('kelurahan')
-        .update({ lat, lng, geojson })
-        .eq('kode', kel.kode)
+      await sql`
+        UPDATE kelurahan
+        SET lat = ${lat}, lng = ${lng}, geojson = ${geojson ? JSON.stringify(geojson) : null}
+        WHERE kode = ${kel.kode}
+      `
 
       results.updated++
-      // Jeda 1 detik agar tidak kena rate-limit Nominatim
       await new Promise((r) => setTimeout(r, 1100))
     } catch {
       results.failed.push(kel.kode)
@@ -53,18 +52,16 @@ export async function POST(_req: NextRequest) {
   return NextResponse.json(results)
 }
 
-// GET /api/geocode?kode=bambu-apus
-// Geocode satu kelurahan spesifik
+// GET /api/geocode?kode=bambu-apus — geocode satu kelurahan
 export async function GET(req: NextRequest) {
   const kode = req.nextUrl.searchParams.get('kode')
   if (!kode) return NextResponse.json({ error: 'Parameter kode diperlukan' }, { status: 400 })
 
-  const { data: kel } = await supabaseAdmin
-    .from('kelurahan')
-    .select('kode, nama, kecamatan, kota_kab, provinsi')
-    .eq('kode', kode)
-    .single()
-
+  const [kel] = await sql`
+    SELECT kode, nama, kecamatan, kota_kab, provinsi
+    FROM kelurahan
+    WHERE kode = ${kode}
+  `
   if (!kel) return NextResponse.json({ error: 'Kelurahan tidak ditemukan' }, { status: 404 })
 
   const query = `${kel.nama}, ${kel.kecamatan}, ${kel.kota_kab}, ${kel.provinsi}, Indonesia`
@@ -85,7 +82,11 @@ export async function GET(req: NextRequest) {
     ? { type: 'Feature', geometry: place.geojson, properties: { kode: kel.kode, nama: kel.nama } }
     : null
 
-  await supabaseAdmin.from('kelurahan').update({ lat, lng, geojson }).eq('kode', kode)
+  await sql`
+    UPDATE kelurahan
+    SET lat = ${lat}, lng = ${lng}, geojson = ${geojson ? JSON.stringify(geojson) : null}
+    WHERE kode = ${kode}
+  `
 
   return NextResponse.json({ kode, lat, lng, geojson })
 }
