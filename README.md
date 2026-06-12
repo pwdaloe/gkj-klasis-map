@@ -22,6 +22,8 @@ Aplikasi web untuk memetakan persebaran warga jemaat gereja-gereja di bawah naun
 
 ## Gambaran Umum
 
+**Live app**: [https://klasis.purwandaru.com](https://klasis.purwandaru.com)
+
 Aplikasi ini dibangun untuk membantu GKJ Klasis Jakarta Bagian Timur dalam:
 
 - Memantau sebaran geografis warga jemaat dari tiap gereja anggota klasis
@@ -303,6 +305,38 @@ Buka [http://localhost:3000](http://localhost:3000).
 ```bash
 npm run build
 npm start
+```
+
+---
+
+## Deployment (VPS)
+
+Aplikasi di-deploy di VPS Ubuntu 24.04 dengan stack berikut:
+
+| Komponen | Detail |
+|---|---|
+| Server | VPS Ubuntu 24.04 LTS |
+| Process manager | PM2 (port 3001) |
+| Web server | Nginx (reverse proxy) |
+| SSL | Let's Encrypt via Certbot |
+| URL Production | https://klasis.purwandaru.com |
+
+**Perintah deploy ulang setelah update kode:**
+
+```bash
+cd /var/www/gkj-klasis
+git pull
+npm install
+npm run build
+pm2 restart gkj-klasis
+```
+
+**Environment variables di VPS** (simpan di `.env.production`):
+
+```env
+DATABASE_URL=postgresql://gkj_user:password@localhost:5432/gkj_klasis
+JWT_SECRET=random-string-minimal-32-karakter
+APP_URL=https://klasis.purwandaru.com
 ```
 
 ---
