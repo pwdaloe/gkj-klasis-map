@@ -7,6 +7,7 @@ const navItems = [
   { href: '/admin/gereja', label: 'Gereja' },
   { href: '/admin/kelompok', label: 'Kelompok' },
   { href: '/admin/kelurahan', label: 'Kelurahan' },
+  { href: '/admin/ref-wilayah', label: 'Ref Wilayah' },
   { href: '/admin/warga', label: 'Data Warga' },
   { href: '/admin/users', label: 'Users' },
 ]

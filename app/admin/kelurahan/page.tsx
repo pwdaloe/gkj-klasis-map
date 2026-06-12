@@ -1,7 +1,9 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { Kelurahan } from '@/lib/types'
+
+type RefSuggest = { id: number; kelurahan: string; kecamatan: string; kota_kab: string; provinsi: string }
 
 export default function AdminKelurahanPage() {
   const [list, setList] = useState<Kelurahan[]>([])
@@ -10,6 +12,9 @@ export default function AdminKelurahanPage() {
   const [geocodeResult, setGeocodeResult] = useState('')
   const [form, setForm] = useState({ kode: '', nama: '', kecamatan: '', kota_kab: '', provinsi: '' })
   const [msg, setMsg] = useState('')
+  const [suggestions, setSuggestions] = useState<RefSuggest[]>([])
+  const [showSuggest, setShowSuggest] = useState(false)
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editKoord, setEditKoord] = useState<string | null>(null)
   const [koordForm, setKoordForm] = useState({ lat: '', lng: '' })
   const [koordMsg, setKoordMsg] = useState('')
@@ -24,6 +29,26 @@ export default function AdminKelurahanPage() {
       .then((r) => r.json())
       .then((rows: { nama: string }[]) => setProvinsiList(rows.map((r) => r.nama)))
   }, [])
+
+  const handleNamaChange = (nama: string) => {
+    setForm((f) => ({ ...f, nama }))
+    if (suggestTimer.current) clearTimeout(suggestTimer.current)
+    if (nama.length < 3) { setSuggestions([]); setShowSuggest(false); return }
+    suggestTimer.current = setTimeout(async () => {
+      const res = await fetch(`/api/ref-wilayah?q=${encodeURIComponent(nama)}&limit=6`)
+      const json = await res.json()
+      setSuggestions(json.data ?? [])
+      setShowSuggest(true)
+    }, 300)
+  }
+
+  const handlePickSuggest = (s: RefSuggest) => {
+    const namaStripped = s.kelurahan.replace(/^(Kelurahan|Desa)\s+/i, '').trim()
+    const kodeAuto = namaStripped.toLowerCase().replace(/\s+/g, '-')
+    setForm({ kode: kodeAuto, nama: namaStripped, kecamatan: s.kecamatan, kota_kab: s.kota_kab, provinsi: s.provinsi })
+    setSuggestions([])
+    setShowSuggest(false)
+  }
 
   const handleTambah = async (e: React.SyntheticEvent) => {
     e.preventDefault()
@@ -247,11 +272,34 @@ export default function AdminKelurahanPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
             <p className="text-xs text-black mt-0.5">Huruf kecil, spasi jadi tanda hubung (-)</p>
           </div>
-          <div>
+          <div className="relative">
             <label className="block text-xs font-medium text-black mb-1">Nama Kelurahan</label>
-            <input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })}
-              placeholder="contoh: Bambu Apus" required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+            <input
+              value={form.nama}
+              onChange={(e) => handleNamaChange(e.target.value)}
+              onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+              onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
+              placeholder="contoh: Bambu Apus"
+              required
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            />
+            {showSuggest && suggestions.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg text-xs max-h-52 overflow-y-auto">
+                {suggestions.map((s) => {
+                  const nama = s.kelurahan.replace(/^(Kelurahan|Desa)\s+/i, '')
+                  return (
+                    <li
+                      key={s.id}
+                      onMouseDown={() => handlePickSuggest(s)}
+                      className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                    >
+                      <span className="font-medium text-black">{nama}</span>
+                      <span className="text-gray-500 ml-2">{s.kecamatan}, {s.kota_kab}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-black mb-1">Kecamatan</label>
