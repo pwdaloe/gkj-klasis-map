@@ -110,7 +110,7 @@ Browser
 
 **Pola penting:**
 - `MapView.tsx` di-load dengan `next/dynamic` + `ssr: false` karena Leaflet hanya bisa jalan di browser
-- Autentikasi menggunakan JWT disimpan sebagai HTTP-only cookie `session`, diverifikasi di `middleware.ts` via `jose`
+- Autentikasi menggunakan JWT disimpan sebagai HTTP-only cookie `session`, diverifikasi di `proxy.ts` via `jose`
 - Password di-hash dengan `bcryptjs` (cost factor 12)
 - User baru memiliki flag `must_change_password = TRUE` — middleware redirect ke `/change-password` sebelum bisa akses halaman lain
 - Kalkulasi jarak gereja–kelurahan menggunakan Haversine formula (`lib/haversine.ts`)
@@ -187,7 +187,7 @@ gkj-klasis-map/
 │   ├── db.ts                   # PostgreSQL client (postgres.js singleton)
 │   ├── auth.ts                 # JWT helper (signToken, verifyToken, hashPassword)
 │   └── haversine.ts            # Kalkulasi jarak haversine
-├── middleware.ts               # Proteksi route, verifikasi JWT, redirect change-password
+├── proxy.ts                    # Proteksi route, verifikasi JWT, redirect change-password
 ├── next.config.ts
 ├── supabase_migration.sql      # Skema database lengkap
 └── .env.local                  # Environment variables (jangan di-commit)
@@ -255,19 +255,26 @@ CREATE DATABASE gkj_klasis OWNER gkj_user;
 GRANT ALL PRIVILEGES ON DATABASE gkj_klasis TO gkj_user;
 ```
 
-Jalankan file migrasi:
+Jalankan file migrasi (membuat tabel gereja, kelompok, kelurahan, fakta_warga, ref_provinsi):
 
 ```bash
-psql -U gkj_user -d gkj_klasis -f supabase_migration.sql
+psql -U gkj_user -h localhost -d gkj_klasis -f supabase_migration.sql
 ```
 
-Tambahkan kolom auth mandiri:
+Buat tabel `user_profiles` untuk auth mandiri:
 
 ```sql
-ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
-ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT '';
-ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT TRUE;
-ALTER TABLE user_profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
+CREATE TABLE user_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL DEFAULT '',
+  nama TEXT NOT NULL DEFAULT '',
+  role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'entry', 'superadmin')),
+  aktif BOOLEAN NOT NULL DEFAULT TRUE,
+  must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+GRANT ALL PRIVILEGES ON TABLE user_profiles TO gkj_user;
 ```
 
 ### 3. Konfigurasi Environment
@@ -284,12 +291,16 @@ APP_URL=http://localhost:3000
 
 ### 4. Buat User Pertama
 
-Masukkan user Super Admin secara manual ke database:
+Generate bcrypt hash lalu insert ke database:
+
+```bash
+# Generate hash (jalankan dari folder project)
+node -e "const bcrypt = require('bcryptjs'); console.log(bcrypt.hashSync('password_sementara', 12));"
+```
 
 ```sql
--- Hash password dulu dengan bcryptjs (cost 12), atau gunakan script
-INSERT INTO user_profiles (id, email, password_hash, nama, role, aktif, must_change_password)
-VALUES (gen_random_uuid(), 'admin@email.com', '[bcrypt_hash]', 'Admin', 'superadmin', TRUE, FALSE);
+INSERT INTO user_profiles (email, password_hash, nama, role, aktif, must_change_password)
+VALUES ('admin@email.com', '[output_hash_di_atas]', 'Admin', 'superadmin', TRUE, FALSE);
 ```
 
 ### 5. Jalankan Development Server
