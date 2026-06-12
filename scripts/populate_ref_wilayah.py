@@ -21,7 +21,7 @@ import requests
 
 # ── Konfigurasi ─────────────────────────────────────────────────────────────
 API_BASE   = "https://klasis.purwandaru.com"
-BATCH_SIZE = 50   # jumlah baris per POST request
+BATCH_SIZE = 5    # kecil agar tidak melebihi batas Nginx 1MB (GeoJSON besar)
 
 # Wilayah yang diinginkan (nilai dari field WADMKK / WADMPR di SHP)
 TARGET_KOTA = {
@@ -81,6 +81,14 @@ def extract_shp(tmpdir, parts):
     return os.path.join(shp_dir, "Batas Desa")  # tanpa ekstensi
 
 
+def round_coords(coords, dp=6):
+    if isinstance(coords[0], (int, float)):
+        return [round(c, dp) for c in coords]
+    return [round_coords(c, dp) for c in coords]
+
+def round_geom(geom, dp=6):
+    return {**geom, "coordinates": round_coords(geom["coordinates"], dp)}
+
 def scan_shp(shp_base):
     print("Memindai SHP...")
     sf     = shapefile.Reader(shp_base, encoding="utf-8")
@@ -110,6 +118,7 @@ def scan_shp(shp_base):
         if geom["type"] not in ("Polygon", "MultiPolygon"):
             geojson_str = None
         else:
+            geom = round_geom(geom)
             feature = {
                 "type": "Feature",
                 "geometry": geom,
