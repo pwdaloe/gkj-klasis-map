@@ -6,7 +6,7 @@ type UserProfile = {
   id: string
   email: string
   nama: string | null
-  role: 'viewer' | 'entry' | 'superadmin'
+  role: 'viewer' | 'entry' | 'superadmin' | 'bph'
   aktif: boolean
   created_at: string
 }
@@ -15,6 +15,7 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: 'View Only',
   entry: 'Entry Data',
   superadmin: 'Super Admin',
+  bph: 'BPH Klasis',
 }
 
 export default function AdminUsersPage() {
@@ -28,7 +29,7 @@ export default function AdminUsersPage() {
   const load = () => fetch('/api/users').then((r) => r.json()).then(setUsers)
   useEffect(() => { load() }, [])
 
-  const handleTambah = async (e: React.FormEvent) => {
+  const handleTambah = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setMsg(''); setError('')
     const res = await fetch('/api/users', {
@@ -90,6 +91,7 @@ export default function AdminUsersPage() {
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
               <option value="viewer">View Only</option>
+              <option value="bph">BPH Klasis</option>
               <option value="entry">Entry Data</option>
               <option value="superadmin">Super Admin</option>
             </select>
@@ -125,6 +127,7 @@ export default function AdminUsersPage() {
                     <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium
                       ${u.role === 'superadmin' ? 'bg-purple-100 text-purple-700' :
                         u.role === 'entry' ? 'bg-blue-100 text-blue-700' :
+                        u.role === 'bph' ? 'bg-amber-100 text-amber-700' :
                         'bg-gray-100 text-black'}`}>
                       {ROLE_LABEL[u.role]}
                     </span>
@@ -158,6 +161,7 @@ export default function AdminUsersPage() {
                             onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
                             <option value="viewer">View Only</option>
+                            <option value="bph">BPH Klasis</option>
                             <option value="entry">Entry Data</option>
                             <option value="superadmin">Super Admin</option>
                           </select>

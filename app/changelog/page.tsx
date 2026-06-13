@@ -1,6 +1,23 @@
 export default function ChangelogPage() {
   const logs = [
     {
+      versi: '1.8',
+      tanggal: '2026-06-13',
+      fitur: [
+        'Export data warga ke format Excel (.xlsx) dan CSV — sesuai filter tahun dan gereja yang aktif',
+        'Upload data warga secara batch via template Excel pre-filled per gereja',
+        'Template Excel berisi daftar kelurahan dan kelompok milik gereja, dengan sheet petunjuk pengisian',
+        'Preview upload: tampilkan baris valid (hijau) dan baris error (merah) sebelum data disimpan',
+        'Landing page publik /tentang — kegunaan aplikasi, fitur, dan download template per gereja tanpa login',
+        'Audit log riwayat perubahan data — mencatat INSERT/UPDATE/DELETE pada semua tabel utama',
+        'Halaman /admin/audit-log untuk Super Admin: filter per tabel dan tanggal, detail data lama/baru',
+        'Dashboard laporan Klasis /bph — kartu ringkasan, bar chart perbandingan gereja, ranking kelurahan',
+        'Dashboard dioptimasi untuk mobile (BPH Klasis)',
+        'Role baru: BPH Klasis — akses peta, dashboard, dan halaman tentang; tidak bisa akses admin panel',
+        'Tabel audit_log di database untuk menyimpan riwayat perubahan',
+      ],
+    },
+    {
       versi: '1.7',
       tanggal: '2026-06-12',
       fitur: [

@@ -367,36 +367,37 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 
 ## Rencana Pengembangan
 
-### Segera (v1.8)
-- [ ] Polygon Jatiduren (Jatisampurna, Bekasi) — gambar manual di geojson.io (3 warga)
+### Dalam Pengerjaan (v1.8)
 - [ ] Export data warga ke format Excel / CSV
-- [ ] Cetak / print ringkasan peta per gereja
+- [ ] Upload data warga secara batch (template Excel pre-filled per gereja)
+- [ ] Landing page publik `/tentang` — kegunaan aplikasi + download template per gereja
+- [ ] Audit log riwayat perubahan data (semua tabel)
+- [ ] Dashboard laporan Klasis `/bph` — ringkasan, perbandingan gereja, ranking kelurahan
+- [ ] Role baru `bph` untuk Badan Pengelola Harian Klasis
+
+> Detail lengkap ada di [V1.8-TODO.md](V1.8-TODO.md)
 
 ### Jangka Pendek
-- [ ] Export data warga ke format Excel / CSV
 - [ ] Cetak / print ringkasan peta per gereja
 - [ ] Notifikasi saat ada kelurahan tanpa koordinat atau polygon belum tersedia
 - [ ] Validasi input di admin panel (jumlah warga tidak boleh negatif, duplikasi entri)
 
 ### Jangka Menengah
 - [ ] Grafik tren pertumbuhan warga per tahun per gereja
-- [ ] Perbandingan antar gereja dalam satu tampilan
-- [ ] Upload data warga secara batch (Excel/CSV)
-- [ ] Riwayat perubahan data (audit log)
 - [ ] Paginasi dan lazy-load pada peta dengan banyak polygon
 
 ### Jangka Panjang
-- [ ] Dashboard laporan untuk Klasis (ringkasan semua gereja)
 - [ ] Peta per kelompok / wilayah pelayanan
 - [ ] Integrasi profil warga (bukan hanya jumlah, tapi data demografis)
 - [ ] Mode offline / PWA untuk daerah dengan koneksi terbatas
 
 ### Selesai
+- [x] Export, upload batch, landing page, audit log, dashboard BPH, role bph (v1.8)
 - [x] Tabel ref_wilayah + admin browser + import + autocomplete (v1.7)
-- [x] Migrasi database Supabase → PostgreSQL self-hosted di VPS
-- [x] Perbaikan rendering polygon kelurahan (geojson TEXT → parse di API)
-- [x] Input GeoJSON manual per kelurahan di admin panel + validasi geometry
-- [x] Import massal polygon dari SHP BPS 2020 (15+ kelurahan)
+- [x] Migrasi database Supabase → PostgreSQL self-hosted di VPS (v1.6)
+- [x] Perbaikan rendering polygon kelurahan (geojson TEXT → parse di API) (v1.6)
+- [x] Input GeoJSON manual per kelurahan di admin panel + validasi geometry (v1.6)
+- [x] Import massal polygon dari SHP BPS 2020 (v1.6)
 
 ---
 
@@ -404,6 +405,7 @@ User dibuat melalui halaman `/admin/users` oleh Super Admin. Tidak ada self-regi
 
 | Versi | Tanggal | Highlight |
 |-------|---------|-----------|
+| **v1.8** | 2026-06-13 | Export Excel/CSV, upload batch, landing page /tentang, audit log, dashboard BPH, role bph |
 | **v1.7** | 2026-06-12 | Tabel ref_wilayah 471 kelurahan Jabodetabek, admin browser + import, autocomplete kelurahan baru |
 | **v1.6** | 2026-06-12 | Migrasi ke PostgreSQL VPS, perbaikan polygon rendering, input GeoJSON manual, import massal dari SHP BPS 2020 |
 | **v1.5** | 2026-05-11 | Sidebar collapsible, mobile UX, overview bar |

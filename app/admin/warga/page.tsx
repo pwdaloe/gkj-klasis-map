@@ -43,6 +43,15 @@ export default function AdminWargaPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [editJumlah, setEditJumlah] = useState(0)
 
+  // Upload batch
+  type PreviewRow = { tahun: number; kelurahan_nama: string; kelompok_nama: string; jumlah_warga: number; error?: string }
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploadGereja, setUploadGereja] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<{ valid: PreviewRow[]; invalid: PreviewRow[] } | null>(null)
+  const [uploadMsg, setUploadMsg] = useState('')
+  const [uploading, setUploading] = useState(false)
+
   const loadKelompok = (gereja_id: string) => {
     if (!gereja_id) { setKelompok([]); return }
     fetch(`/api/kelompok?gereja_id=${gereja_id}`).then((r) => r.json()).then(setKelompok)
@@ -83,7 +92,7 @@ export default function AdminWargaPage() {
     setKelDropdown(false)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     const res = await fetch('/api/warga', {
       method: 'POST',
@@ -125,12 +134,43 @@ export default function AdminWargaPage() {
     loadList()
   }
 
+  const handleExport = (format: 'xlsx' | 'csv') => {
+    const params = new URLSearchParams({ tahun: String(filterTahun), format })
+    if (filterGereja) params.set('gereja_id', filterGereja)
+    const a = document.createElement('a')
+    a.href = `/api/export/warga?${params}`
+    a.download = `data-warga-${filterTahun}.${format}`
+    a.click()
+  }
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
     else { setSortKey(key); setSortDir('asc') }
   }
 
   const sortIcon = (key: SortKey) => sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'
+
+  const handlePreviewUpload = async () => {
+    if (!uploadFile) return
+    setUploading(true); setUploadMsg(''); setPreview(null)
+    const fd = new FormData(); fd.append('file', uploadFile)
+    const res = await fetch('/api/upload/warga?preview=1', { method: 'POST', body: fd })
+    const data = await res.json()
+    setPreview(data)
+    setUploading(false)
+  }
+
+  const handleKonfirmasiUpload = async () => {
+    if (!uploadFile || !preview) return
+    setUploading(true); setUploadMsg('')
+    const fd = new FormData(); fd.append('file', uploadFile)
+    const res = await fetch('/api/upload/warga', { method: 'POST', body: fd })
+    const data = await res.json()
+    setUploadMsg(`Berhasil menyimpan ${data.saved} baris data.`)
+    setPreview(null); setUploadFile(null)
+    loadList()
+    setUploading(false)
+  }
 
   const filtered = list
     .filter((row) => {
@@ -233,18 +273,135 @@ export default function AdminWargaPage() {
         </form>
       </div>
 
+      {/* Upload Batch */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <button
+          onClick={() => { setShowUpload(!showUpload); setPreview(null); setUploadMsg('') }}
+          className="w-full flex items-center justify-between px-5 py-3 text-sm font-semibold text-black hover:bg-gray-50"
+        >
+          <span>Upload Data Batch (Excel)</span>
+          <span className="text-gray-400">{showUpload ? '▲' : '▼'}</span>
+        </button>
+
+        {showUpload && (
+          <div className="border-t border-gray-200 px-5 py-4 space-y-4">
+            {/* Step 1: Download template */}
+            <div>
+              <p className="text-xs font-semibold text-black mb-2">1. Download template untuk gereja Anda</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <select value={uploadGereja} onChange={(e) => setUploadGereja(e.target.value)}
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm min-w-[200px]">
+                  <option value="">-- Pilih Gereja --</option>
+                  {gereja.map((g) => <option key={g.gereja_id} value={g.gereja_id}>{g.nama}</option>)}
+                </select>
+                {uploadGereja && (
+                  <a href={`/api/template/${uploadGereja}`} download
+                    className="text-xs px-3 py-1.5 rounded-lg border border-blue-600 text-blue-700 hover:bg-blue-50">
+                    ↓ Download Template
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2: Upload file */}
+            <div>
+              <p className="text-xs font-semibold text-black mb-2">2. Upload file yang sudah diisi</p>
+              <input type="file" accept=".xlsx,.xls"
+                onChange={(e) => { setUploadFile(e.target.files?.[0] ?? null); setPreview(null) }}
+                className="text-sm text-gray-600" />
+              {uploadFile && !preview && (
+                <button onClick={handlePreviewUpload} disabled={uploading}
+                  className="ml-3 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50">
+                  {uploading ? 'Memproses...' : 'Cek Preview'}
+                </button>
+              )}
+            </div>
+
+            {/* Step 3: Preview */}
+            {preview && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-black">
+                  3. Preview — {preview.valid.length} baris valid, {preview.invalid.length} baris error
+                </p>
+                {preview.invalid.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-red-700 mb-2">Baris yang tidak valid (akan dilewati):</p>
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-left text-red-600">
+                        <th className="pb-1 pr-4">Kelurahan</th><th className="pb-1 pr-4">Kelompok</th><th className="pb-1">Error</th>
+                      </tr></thead>
+                      <tbody>{preview.invalid.map((r, i) => (
+                        <tr key={i} className="text-red-700">
+                          <td className="pr-4">{r.kelurahan_nama}</td>
+                          <td className="pr-4">{r.kelompok_nama}</td>
+                          <td>{r.error}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  </div>
+                )}
+                {preview.valid.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-green-700 mb-2">Baris valid (akan disimpan):</p>
+                    <table className="w-full text-xs">
+                      <thead><tr className="text-left text-green-700">
+                        <th className="pb-1 pr-4">Tahun</th><th className="pb-1 pr-4">Kelurahan</th>
+                        <th className="pb-1 pr-4">Kelompok</th><th className="pb-1">Jumlah</th>
+                      </tr></thead>
+                      <tbody>{preview.valid.slice(0, 20).map((r, i) => (
+                        <tr key={i} className="text-green-800">
+                          <td className="pr-4">{r.tahun}</td>
+                          <td className="pr-4">{r.kelurahan_nama}</td>
+                          <td className="pr-4">{r.kelompok_nama}</td>
+                          <td>{r.jumlah_warga}</td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                    {preview.valid.length > 20 && (
+                      <p className="text-xs text-green-600 mt-1">...dan {preview.valid.length - 20} baris lainnya</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <button onClick={handleKonfirmasiUpload} disabled={uploading || preview.valid.length === 0}
+                    className="text-xs px-4 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800 disabled:opacity-50">
+                    {uploading ? 'Menyimpan...' : `Simpan ${preview.valid.length} Baris Valid`}
+                  </button>
+                  <button onClick={() => { setPreview(null); setUploadFile(null) }}
+                    className="text-xs text-gray-500 hover:text-black underline">
+                    Batal
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {uploadMsg && <p className="text-xs text-green-600 font-medium">{uploadMsg}</p>}
+          </div>
+        )}
+      </div>
+
       {/* Tabel Data */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-200 space-y-2">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <h3 className="font-semibold text-black">Hasil Data Tahun</h3>
-            <select value={filterTahun}
-              onChange={(e) => setFilterTahun(Number(e.target.value))}
-              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
-              {[2024, 2025, 2026, 2027, 2028].map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select value={filterTahun}
+                onChange={(e) => setFilterTahun(Number(e.target.value))}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm">
+                {[2024, 2025, 2026, 2027, 2028].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <button onClick={() => handleExport('xlsx')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-green-600 text-green-700 hover:bg-green-50">
+                ↓ Excel
+              </button>
+              <button onClick={() => handleExport('csv')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gray-400 text-gray-600 hover:bg-gray-50">
+                ↓ CSV
+              </button>
+            </div>
           </div>
           <div className="flex gap-2">
             <input

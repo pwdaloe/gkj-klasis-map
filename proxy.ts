@@ -4,7 +4,8 @@ import { verifyToken } from '@/lib/auth'
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/changelog')) return NextResponse.next()
+  const publicPaths = ['/changelog', '/tentang']
+  if (publicPaths.some((p) => pathname.startsWith(p))) return NextResponse.next()
 
   const token = request.cookies.get('session')?.value
   const user = token ? await verifyToken(token) : null
@@ -23,12 +24,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/change-password', request.url))
   }
 
+  // Role bph: hanya boleh akses /, /bph, /tentang, /changelog
+  if (user.role === 'bph' && pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/bph', request.url))
+  }
+
   if (pathname.startsWith('/admin')) {
     if (!user.role || user.role === 'viewer') {
       return NextResponse.redirect(new URL('/', request.url))
     }
 
     if (pathname.startsWith('/admin/users') && user.role !== 'superadmin') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+
+    if (pathname.startsWith('/admin/audit-log') && user.role !== 'superadmin') {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }

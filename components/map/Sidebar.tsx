@@ -154,14 +154,23 @@ export default function Sidebar({
 
       <div className="px-4 py-3 border-t border-gray-100 space-y-1">
         <a
+          href="/bph"
+          className="block w-full text-center text-xs text-blue-600 hover:text-blue-800 font-medium py-1"
+        >
+          Dashboard Laporan →
+        </a>
+        <a
           href="/admin/gereja"
           className="block w-full text-center text-xs text-blue-600 hover:text-blue-800 font-medium py-1"
         >
           Admin Panel →
         </a>
         <div className="flex items-center justify-between">
-          <a href="/changelog" className="text-xs text-black hover:text-blue-700 underline">Changelog</a>
-          <span className="text-xs text-black">v1.5</span>
+          <div className="flex items-center gap-3">
+            <a href="/tentang" className="text-xs text-black hover:text-blue-700 underline">Tentang</a>
+            <a href="/changelog" className="text-xs text-black hover:text-blue-700 underline">Changelog</a>
+          </div>
+          <span className="text-xs text-black">v1.8</span>
         </div>
         <button
           onClick={handleLogout}

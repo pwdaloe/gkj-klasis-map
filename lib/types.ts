@@ -1,3 +1,5 @@
+export type Role = 'viewer' | 'entry' | 'superadmin' | 'bph'
+
 export type Gereja = {
   gereja_id: string
   nama: string

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sql from '@/lib/db'
 import { haversineKm } from '@/lib/haversine'
+import { getUserFromRequest, logAudit } from '@/lib/audit'
 
 function parseGeojson(raw: unknown): object | null {
   if (!raw) return null
@@ -145,21 +146,30 @@ export async function POST(req: NextRequest) {
     VALUES (${tahun}, ${kelurahan_kode}, ${gereja_id}, ${kelompok_id ?? null}, ${jumlah_warga})
     ON CONFLICT (tahun, kelurahan_kode, gereja_id, kelompok_id)
     DO UPDATE SET jumlah_warga = EXCLUDED.jumlah_warga
-    RETURNING *
+    RETURNING *, (xmax = 0) AS is_insert
   `
+  const user = await getUserFromRequest(req)
+  const action = row.is_insert ? 'INSERT' : 'UPDATE'
+  await logAudit({ user, action, tabel: 'fakta_warga', recordId: row.id, dataBaru: row })
   return NextResponse.json(row, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
   const { id, jumlah_warga } = await req.json()
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
+  const [lama] = await sql`SELECT * FROM fakta_warga WHERE id = ${id}`
   await sql`UPDATE fakta_warga SET jumlah_warga = ${jumlah_warga} WHERE id = ${id}`
+  const user = await getUserFromRequest(req)
+  await logAudit({ user, action: 'UPDATE', tabel: 'fakta_warga', recordId: id, dataLama: lama, dataBaru: { ...lama, jumlah_warga } })
   return NextResponse.json({ success: true })
 }
 
 export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id diperlukan' }, { status: 400 })
+  const [lama] = await sql`SELECT * FROM fakta_warga WHERE id = ${id}`
   await sql`DELETE FROM fakta_warga WHERE id = ${id}`
+  const user = await getUserFromRequest(req)
+  await logAudit({ user, action: 'DELETE', tabel: 'fakta_warga', recordId: id, dataLama: lama })
   return NextResponse.json({ success: true })
 }

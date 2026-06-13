@@ -10,6 +10,7 @@ const navItems = [
   { href: '/admin/ref-wilayah', label: 'Ref Wilayah' },
   { href: '/admin/warga', label: 'Data Warga' },
   { href: '/admin/users', label: 'Users' },
+  { href: '/admin/audit-log', label: 'Audit Log' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
