@@ -122,7 +122,7 @@ export default function BphPage() {
                     />
                     <YAxis tick={{ fontSize: 11 }} width={45} />
                     <Tooltip
-                      formatter={(val: number) => [val.toLocaleString('id-ID') + ' warga', 'Jumlah']}
+                      formatter={(val) => [typeof val === 'number' ? val.toLocaleString('id-ID') + ' warga' : String(val ?? ''), 'Jumlah']}
                       labelStyle={{ fontWeight: 600 }}
                     />
                     <Bar dataKey="jumlah_warga" radius={[4, 4, 0, 0]}>
