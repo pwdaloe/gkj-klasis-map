@@ -21,6 +21,8 @@ export async function logAudit(params: {
   dataBaru?: object | null
 }): Promise<void> {
   try {
+    const dataLama = params.dataLama != null ? JSON.stringify(params.dataLama) : null
+    const dataBaru = params.dataBaru != null ? JSON.stringify(params.dataBaru) : null
     await sql`
       INSERT INTO audit_log (user_id, user_nama, action, tabel, record_id, data_lama, data_baru)
       VALUES (
@@ -29,8 +31,8 @@ export async function logAudit(params: {
         ${params.action},
         ${params.tabel},
         ${params.recordId},
-        ${params.dataLama ?? null},
-        ${params.dataBaru ?? null}
+        ${dataLama}::jsonb,
+        ${dataBaru}::jsonb
       )
     `
   } catch {
